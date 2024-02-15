@@ -1,33 +1,62 @@
 #include "lib.h"
-void handle_root(char *buf)
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+
+using namespace std;
+
+string readHtmlFile(const string &path)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Root Page</h1>\r\n");
+    ifstream file(path);
+    stringstream buffer;
+    if (file)
+    {
+        buffer << file.rdbuf();
+        file.close();
+        return "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + buffer.str();
+    }
+    else
+    {
+        return "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\n\r\n<h1>404 Not Found</h1>";
+    }
 }
 
-void handle_index(char *buf)
+void handle_about(char *buf, size_t bufSize)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Index Page</h1>\r\n");
+    string response = readHtmlFile("data/about.html");
+    strncpy(buf, response.c_str(), bufSize);
+    buf[bufSize - 1] = '\0'; // NULL 문자 추가
 }
 
-void handle_about(char *buf)
+void handle_contact(char *buf, size_t bufSize)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>About Page</h1>\r\n");
+    string response = readHtmlFile("data/contact.html");
+    strncpy(buf, response.c_str(), bufSize);
+    buf[bufSize - 1] = '\0';
 }
 
-void handle_contact(char *buf)
+void handle_index(char *buf, size_t bufSize)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Contact Page</h1>\r\n");
+    string response = readHtmlFile("data/index.html");
+    strncpy(buf, response.c_str(), bufSize);
+    buf[bufSize - 1] = '\0';
 }
 
-void handle_test(char *buf)
+void handle_main(char *buf, size_t bufSize)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Test Page 1</h1>\r\n");
+    string response = readHtmlFile("data/main.html");
+    strncpy(buf, response.c_str(), bufSize);
+    buf[bufSize - 1] = '\0';
 }
 
-void handle_main(char *buf)
+void handle_test(char *buf, size_t bufSize)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Main Page 2</h1>\r\n");
+    string response = readHtmlFile("data/test.html");
+    strncpy(buf, response.c_str(), bufSize);
+    buf[bufSize - 1] = '\0';
 }
+
 int main()
 {
     WSAData wsaData;
@@ -92,32 +121,28 @@ int main()
         int recvlen = recv(clisock, buf, sizeof(buf) - 1, 0);
         if (recvlen > 0)
         {
-            buf[recvlen] = '\0'; // 성공적으로 데이터를 받았을 경우에만 처리
+            buf[recvlen] = '\0';
             cout << "Recv: " << buf << endl;
 
-            if (strstr(buf, "GET / HTTP/1.1") != NULL)
+            if (strstr(buf, "GET /index HTTP/1.1") != NULL)
             {
-                handle_root(buf);
-            }
-            else if (strstr(buf, "GET /index HTTP/1.1") != NULL)
-            {
-                handle_index(buf);
+                handle_index(buf, sizeof(buf));
             }
             else if (strstr(buf, "GET /about HTTP/1.1") != NULL)
             {
-                handle_about(buf);
+                handle_about(buf, sizeof(buf));
             }
             else if (strstr(buf, "GET /contact HTTP/1.1") != NULL)
             {
-                handle_contact(buf);
+                handle_contact(buf, sizeof(buf));
             }
             else if (strstr(buf, "GET /test HTTP/1.1") != NULL)
             {
-                handle_test(buf);
+                handle_test(buf, sizeof(buf));
             }
             else if (strstr(buf, "GET /main HTTP/1.1") != NULL)
             {
-                handle_main(buf);
+                handle_main(buf, sizeof(buf));
             }
 
             send(clisock, buf, strlen(buf), 0);
