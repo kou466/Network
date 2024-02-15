@@ -1,42 +1,37 @@
 #include "lib.h"
 void handle_root(char *buf)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Root Page</h1>");
+    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Root Page</h1>\r\n");
 }
+
 void handle_index(char *buf)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Index Page</h1>");
+    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Index Page</h1>\r\n");
 }
 
 void handle_about(char *buf)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>About Page</h1>");
+    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>About Page</h1>\r\n");
 }
 
 void handle_contact(char *buf)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Contact Page</h1>");
+    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Contact Page</h1>\r\n");
 }
 
-void handle_other_page_1(char *buf)
+void handle_test(char *buf)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Other Page 1</h1>");
+    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Test Page 1</h1>\r\n");
 }
 
-void handle_other_page_2(char *buf)
+void handle_main(char *buf)
 {
-    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Other Page 2</h1>");
+    strcpy(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<h1>Main Page 2</h1>\r\n");
 }
 int main()
 {
     WSAData wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-    // Blocking Socket
-    // accept (접속한 클라이언트가 있으면)
-    // -> connect (클라이언트가 접속에 성공하면)
-    // -> send/sendto (클라이언트/서버가 데이터를 송신버퍼에 복사하면)
-    // -> recv/recvfrom (클라이언트/서버가 데이터를 수신버퍼에서 복사해옴)
 
     // Non-blocking Socket
     SOCKET servsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -79,13 +74,9 @@ int main()
         SOCKET clisock = accept(servsock, (SOCKADDR *)&cliaddr, &addrlen);
         if (clisock == INVALID_SOCKET)
         {
-            // 블로킹 일때는 바로 문제가 되지만,
-            // cout << "accept() error" << endl;
-            // return 0;
-
-            // 논블로킹 일때는 한번 더 확인해야 한다
             if (WSAGetLastError() == WSAEWOULDBLOCK)
             {
+                Sleep(100);
                 continue;
             }
             else
@@ -98,19 +89,21 @@ int main()
         cout << "Client Connected" << endl;
 
         char buf[1024] = "";
+        memset(buf, 0, sizeof(buf)); // 버퍼 초기화
+
+        bool client_disconnected = false; // 클라이언트가 접속을 끊었는지 여부
 
         while (true)
         {
             int recvlen;
-            // 논블로킹 소켓은 send()도 루프를 돌면서 될 때까지 계속 시도해야함
             while (true)
             {
-                recvlen = recv(clisock, buf, sizeof(buf), 0);
+                recvlen = recv(clisock, buf, sizeof(buf) - 1, 0);
                 if (recvlen == SOCKET_ERROR)
                 {
-                    // 논블로킹 소켓은 recv()에서 한번 더 체크해줘야함
                     if (WSAGetLastError() == WSAEWOULDBLOCK)
                     {
+                        Sleep(100);
                         continue;
                     }
                     else
@@ -119,21 +112,17 @@ int main()
                         return 0;
                     }
                 }
-                else
+                else if (recvlen == 0)
                 {
+                    client_disconnected = true;
+                    cout << "Client Disconnected" << endl;
                     break;
                 }
             }
 
-            if (recvlen == 0)
-            {                         // 클라이언트가 접속을 끊었으면
-                closesocket(clisock); // 소켓을 닫고
-                cout << "Client Disconnected" << endl;
-                break; // 루프를 빠져나가서 다음 클라이언트를 받는다
-            }
-
             buf[recvlen] = '\0';
 
+            // http 요청 처리
             cout << "Recv: " << buf << endl;
 
             if (strstr(buf, "GET / HTTP/1.1") != NULL)
@@ -152,32 +141,40 @@ int main()
             {
                 handle_contact(buf);
             }
-            else if (strstr(buf, "GET /other_page_1 HTTP/1.1") != NULL)
+            else if (strstr(buf, "GET /test HTTP/1.1") != NULL)
             {
-                handle_other_page_1(buf);
+                handle_test(buf);
             }
-            else if (strstr(buf, "GET /other_page_2 HTTP/1.1") != NULL)
+            else if (strstr(buf, "GET /main HTTP/1.1") != NULL)
             {
-                handle_other_page_2(buf);
+                handle_main(buf);
             }
 
             int sendlen;
-            // 논블로킹 소켓은 send()도 루프를 돌면서 될 때까지 계속 시도해야함
-            while (true)
+            int totalBytes = strlen(buf); // 전체 보내야 할 바이트 수
+            int sentBytes = 0;            // 현재까지 보낸 바이트 수
+
+            while (sentBytes < totalBytes)
             {
-                sendlen = send(clisock, buf, strlen(buf) + 1, 0);
+                sendlen = send(clisock, buf + sentBytes, totalBytes - sentBytes, 0);
+
                 if (sendlen == SOCKET_ERROR)
                 {
-                    // 논블로킹 소켓은 send()에서 한번 더 체크해줘야함
                     if (WSAGetLastError() == WSAEWOULDBLOCK)
                     {
+                        Sleep(100);
                         continue;
                     }
                     else
                     {
                         cout << "send() error" << endl;
+                        closesocket(clisock);
                         return 0;
                     }
+                }
+                else if (sendlen > 0)
+                {
+                    sentBytes += sendlen;
                 }
                 else
                 {
@@ -185,12 +182,13 @@ int main()
                 }
             }
 
-            if (sendlen == 0)
-            {                         // 클라이언트가 접속을 끊었으면
-                closesocket(clisock); // 소켓을 닫고
-                cout << "Client Disconnected" << endl;
-                break; // 루프를 빠져나가서 다음 클라이언트를 받는다
+            if (sentBytes == totalBytes)
+            {
+                cout << "Data Success" << endl;
             }
+
+            closesocket(clisock);
+            cout << "Client Disconnected" << endl;
         }
     }
 
@@ -198,4 +196,4 @@ int main()
 
     WSACleanup();
     return 0;
-} // 논블로킹 + 동기 방식은 상당히 많은 루프를 필요로 하기 때문에 비효율적이다
+}
