@@ -37,8 +37,18 @@ void WorkerThread(HANDLE iocpHd)
             if (session != nullptr)
             {
                 cout << "Client disconnected" << endl;
+
+                // 세션 제거
+                auto it = find(sessions.begin(), sessions.end(), session);
+                if (it != sessions.end())
+                {
+                    sessions.erase(it);
+                }
+
+                // 소켓 닫기 및 메모리 해제
                 closesocket(session->sock);
                 MemPool_delete(*MemPool, session);
+
                 continue;
             }
         }
